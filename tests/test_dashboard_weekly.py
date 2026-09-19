@@ -1,8 +1,8 @@
 """
 Coverage for the Dashboard's weekly (Saturday -> Friday) financial window:
 the week-boundary math itself, that Net Position/Receivables/Payables are
-scoped to sales/purchases dated within the current week rather than being a
-lifetime running total, and the previous week's export + its 2-day expiry.
+collected/paid amounts scoped to payments dated within the current week
+(while the pending totals and owing counts cover everything unpaid to date), and the previous week's export + its 2-day expiry.
 """
 import uuid
 from datetime import date, timedelta
@@ -69,10 +69,10 @@ async def _create_product(client, sku):
 
 
 @pytest.mark.asyncio
-async def test_pending_receivables_only_reflect_sales_dated_this_week(client):
-    # A sale dated last week must not move this week's *pending* receivables,
-    # even though its balance is still unpaid -- the weekly figures are a
-    # cohort of "business done this week", not a lifetime running balance.
+async def test_pending_receivables_cover_all_unpaid_sales_not_just_this_week(client):
+    # Unlike the collected total (which is a per-week cash-flow figure), the
+    # *pending* receivables and the "N customers still owe" count are not
+    # weekly: an unpaid sale from a previous week is still money owed today.
     suffix = _unique()
     customer = await _create_customer(client, f"Weekly Customer{suffix}")
     product = await _create_product(client, f"WW{suffix}")
@@ -89,6 +89,7 @@ async def test_pending_receivables_only_reflect_sales_dated_this_week(client):
         },
     )
     assert resp.status_code == 201
+    old_sale = resp.json()
 
     resp = await client.post(
         "/sales",
@@ -101,10 +102,52 @@ async def test_pending_receivables_only_reflect_sales_dated_this_week(client):
 
     after = (await client.get("/dashboard")).json()
 
-    # Only the sale dated within the current week should move the total.
-    assert Decimal(after["pending_receivables"]) - Decimal(before["pending_receivables"]) == Decimal("300.00")
+    # Both the last-week sale and this week's sale count toward what's owed,
+    # and it's one customer regardless of how many unpaid sales they have.
+    assert Decimal(after["pending_receivables"]) - Decimal(before["pending_receivables"]) == Decimal("800.00")
+    assert after["customers_with_outstanding_balance"] - before["customers_with_outstanding_balance"] == 1
     assert "overdue_customer_balance" not in after
     assert "overdue_manufacturer_balance" not in after
+
+    # Paying the older sale off clears its 500 from what's owed, but the
+    # customer still owes on this week's sale, so they stay in the count.
+    resp = await client.post(f"/sales/{old_sale['id']}/payments", json={"amount": "500.00"})
+    assert resp.status_code == 201
+    paid = (await client.get("/dashboard")).json()
+    assert Decimal(paid["pending_receivables"]) - Decimal(before["pending_receivables"]) == Decimal("300.00")
+    assert paid["customers_with_outstanding_balance"] - before["customers_with_outstanding_balance"] == 1
+
+
+@pytest.mark.asyncio
+async def test_pending_payables_cover_all_unpaid_purchases_not_just_this_week(client):
+    suffix = _unique()
+    manufacturer = (await client.post("/manufacturers", json={"name": f"Weekly Manufacturer{suffix}"})).json()
+    product = await _create_product(client, f"WP{suffix}")
+
+    before = (await client.get("/dashboard")).json()
+    last_week_date = (date.fromisoformat(before["week_start"]) - timedelta(days=7)).isoformat()
+
+    resp = await client.post(
+        "/purchases",
+        json={
+            "manufacturer_id": manufacturer["id"],
+            "purchase_date": last_week_date,
+            "items": [{"product_id": product["id"], "quantity": 2, "line_total": "1000.00"}],
+        },
+    )
+    assert resp.status_code == 201
+    purchase = resp.json()
+
+    after = (await client.get("/dashboard")).json()
+    assert Decimal(after["pending_payables"]) - Decimal(before["pending_payables"]) == Decimal("1000.00")
+    assert after["manufacturers_with_outstanding_balance"] - before["manufacturers_with_outstanding_balance"] == 1
+
+    # Once fully paid, the manufacturer drops out of the "still owed" count.
+    resp = await client.post(f"/purchases/{purchase['id']}/payments", json={"amount": "1000.00"})
+    assert resp.status_code == 201
+    paid = (await client.get("/dashboard")).json()
+    assert Decimal(paid["pending_payables"]) == Decimal(before["pending_payables"])
+    assert paid["manufacturers_with_outstanding_balance"] == before["manufacturers_with_outstanding_balance"]
 
 
 @pytest.mark.asyncio

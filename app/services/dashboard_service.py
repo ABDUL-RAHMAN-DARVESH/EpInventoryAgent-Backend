@@ -49,13 +49,21 @@ def _week_bounds(reference_date: date) -> tuple[date, date]:
     return week_start, week_end
 
 
-async def _weekly_financials(db: AsyncSession, owner_id: uuid.UUID, week_start: date, week_end: date) -> dict:
+async def _weekly_financials(
+    db: AsyncSession, owner_id: uuid.UUID, week_start: date, week_end: date, *, pending_all_time: bool = False
+) -> dict:
     """Net position/receivables/payables for one Saturday-to-Friday week --
     scoped to *actual money that changed hands* (payments dated within the
     window), not the amount customers/manufacturers were expected to pay.
     `pending_receivables`/`pending_payables` carry the old "expected but not
     yet paid" view (still scoped to sales/purchases dated this week) as a
-    secondary figure. This is what makes each new week start fresh."""
+    secondary figure. This is what makes each new week start fresh.
+
+    With `pending_all_time`, the pending totals and the "N customers/
+    manufacturers still owing" counts ignore the week entirely and cover every
+    sale/purchase up to today -- that's what the live Dashboard shows, since
+    who still owes (or is still owed) doesn't reset on Saturday. Only the
+    completed-week export keeps the weekly scoping, as a snapshot of that week."""
     total_receivables = await db.scalar(
         select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
             CustomerPayment.owner_id == owner_id,
@@ -71,29 +79,22 @@ async def _weekly_financials(db: AsyncSession, owner_id: uuid.UUID, week_start: 
         )
     ) or Decimal("0")
 
-    pending_receivables = await db.scalar(
-        select(func.coalesce(func.sum(Sale.balance_due), 0)).where(
-            Sale.owner_id == owner_id, Sale.sale_date >= week_start, Sale.sale_date <= week_end
-        )
-    ) or Decimal("0")
+    sale_scope = [Sale.owner_id == owner_id]
+    purchase_scope = [Purchase.owner_id == owner_id]
+    if not pending_all_time:
+        sale_scope += [Sale.sale_date >= week_start, Sale.sale_date <= week_end]
+        purchase_scope += [Purchase.purchase_date >= week_start, Purchase.purchase_date <= week_end]
+
+    pending_receivables = await db.scalar(select(func.coalesce(func.sum(Sale.balance_due), 0)).where(*sale_scope)) or Decimal("0")
     customers_with_outstanding_balance = await db.scalar(
-        select(func.count(func.distinct(Sale.customer_id))).where(
-            Sale.owner_id == owner_id, Sale.sale_date >= week_start, Sale.sale_date <= week_end, Sale.balance_due > 0
-        )
+        select(func.count(func.distinct(Sale.customer_id))).where(*sale_scope, Sale.balance_due > 0)
     ) or 0
 
     pending_payables = await db.scalar(
-        select(func.coalesce(func.sum(Purchase.balance_due), 0)).where(
-            Purchase.owner_id == owner_id, Purchase.purchase_date >= week_start, Purchase.purchase_date <= week_end
-        )
+        select(func.coalesce(func.sum(Purchase.balance_due), 0)).where(*purchase_scope)
     ) or Decimal("0")
     manufacturers_with_outstanding_balance = await db.scalar(
-        select(func.count(func.distinct(Purchase.manufacturer_id))).where(
-            Purchase.owner_id == owner_id,
-            Purchase.purchase_date >= week_start,
-            Purchase.purchase_date <= week_end,
-            Purchase.balance_due > 0,
-        )
+        select(func.count(func.distinct(Purchase.manufacturer_id))).where(*purchase_scope, Purchase.balance_due > 0)
     ) or 0
 
     return {
@@ -240,7 +241,7 @@ def _previous_week_window(today: date) -> tuple[date, date, int]:
 async def get_dashboard_summary(db: AsyncSession, owner_id: uuid.UUID) -> DashboardSummary:
     today = _today()
     week_start, week_end = _week_bounds(today)
-    financials = await _weekly_financials(db, owner_id, week_start, week_end)
+    financials = await _weekly_financials(db, owner_id, week_start, week_end, pending_all_time=True)
 
     prev_week_start, prev_week_end, days_since_prev_week_end = _previous_week_window(today)
     export_available = 1 <= days_since_prev_week_end <= EXPORT_GRACE_DAYS
