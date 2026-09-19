@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin Dashboard — Inventory Payment Agent</title>
+<style>
+  :root {
+    --primary: #4F46E5;
+    --primary-dark: #4338CA;
+    --primary-light: #EEF2FF;
+    --bg: #F7F8FA;
+    --surface: #FFFFFF;
+    --border: #E5E7EB;
+    --text: #111827;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+    --success: #059669;
+    --success-light: #ECFDF5;
+    --danger: #DC2626;
+    --danger-light: #FEF2F2;
+    --warning: #D97706;
+    --warning-light: #FFFBEB;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  [hidden] { display: none !important; }
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 600;
+  }
+  button.primary { background: var(--primary); color: #fff; }
+  button.primary:hover { background: var(--primary-dark); }
+  button.secondary { background: var(--primary-light); color: var(--primary); }
+  button.danger { background: var(--danger-light); color: var(--danger); }
+  button.ghost { background: transparent; color: var(--text-secondary); padding: 6px 10px; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  input, select, textarea {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    width: 100%;
+  }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  /* ---- Login view ---- */
+  #login-view {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #E0E7FF, #DDE3FA);
+  }
+  #login-view .card { width: 100%; max-width: 360px; }
+  #login-view h1 { font-size: 18px; margin: 0 0 4px; }
+  #login-view p.sub { color: var(--text-secondary); margin: 0 0 20px; font-size: 13px; }
+  #login-error { color: var(--danger); font-size: 13px; margin-bottom: 12px; }
+
+  /* ---- App shell ---- */
+  header.topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header.topbar .title { font-weight: 700; font-size: 16px; }
+  header.topbar .title .badge {
+    background: var(--primary-light); color: var(--primary); font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px; margin-left: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  header.topbar .who { display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 13px; }
+
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 24px 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  nav.tabs button {
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 8px 8px 0 0;
+    padding: 10px 16px;
+    font-weight: 600;
+  }
+  nav.tabs button.active {
+    color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .panel-header h2 { font-size: 16px; margin: 0; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--text-secondary); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.3px; }
+  tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill.active { background: var(--success-light); color: var(--success); }
+  .pill.inactive { background: var(--danger-light); color: var(--danger); }
+  .pill.admin { background: var(--primary-light); color: var(--primary); }
+  .pill.staff { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .muted { color: var(--text-muted); }
+
+  .create-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end; margin-bottom: 20px; }
+  .create-form .field { margin-bottom: 0; }
+  .create-form button { height: 38px; }
+
+  .toast {
+    position: fixed; top: 16px; right: 16px; z-index: 100;
+    background: var(--text); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  }
+  .toast.error { background: var(--danger); }
+  .toast.success { background: var(--success); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(17,24,39,0.4);
+    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal { background: #fff; border-radius: var(--radius); width: 100%; max-width: 420px; max-height: 80vh; overflow-y: auto; }
+  .modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-head h3 { margin: 0; font-size: 15px; }
+  .modal-body { padding: 16px 20px; }
+  .feature-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .feature-row:last-child { border-bottom: none; }
+  .feature-row .name { font-weight: 600; }
+  .feature-row .desc { color: var(--text-secondary); font-size: 12px; }
+  .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider { position: absolute; inset: 0; background: var(--border); border-radius: 999px; cursor: pointer; transition: 0.15s; }
+  .switch .slider::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: 0.15s; }
+  .switch input:checked + .slider { background: var(--primary); }
+  .switch input:checked + .slider::before { transform: translateX(18px); }
+  .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div id="login-view">
+  <div class="card">
+    <h1>Admin Dashboard</h1>
+    <p class="sub">Inventory Payment Agent — administrators only</p>
+    <div id="login-error"></div>
+    <div class="field">
+      <label>Email</label>
+      <input id="login-email" type="email" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="login-password" type="password" autocomplete="current-password" />
+    </div>
+    <button class="primary" id="login-btn" style="width:100%">Sign In</button>
+  </div>
+</div>
+
+<div id="app-view" hidden>
+  <header class="topbar">
+    <div class="title">Admin Dashboard <span class="badge">Admin Only</span></div>
+    <div class="who">
+      <span id="who-email"></span>
+      <button class="ghost" id="logout-btn">Log out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="users">Users</button>
+    <button class="tab-btn" data-tab="features">Features</button>
+    <button class="tab-btn" data-tab="versions">App Versions</button>
+  </nav>
+
+  <main>
+    <!-- USERS -->
+    <section id="tab-users">
+      <div class="panel-header"><h2>Users</h2></div>
+      <div class="card create-form" id="create-user-form">
+        <div class="field"><label>Email</label><input id="new-user-email" type="email" /></div>
+        <div class="field"><label>Password</label><input id="new-user-password" type="password" /></div>
+        <div class="field"><label>Full name</label><input id="new-user-name" type="text" /></div>
+        <div class="field">
+          <label>Role</label>
+          <select id="new-user-role"><option value="STAFF">Staff</option><option value="ADMIN">Admin</option></select>
+        </div>
+        <button class="primary" id="create-user-btn">Add User</button>
+      </div>
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table>
+          <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Expires</th><th>Actions</th></tr></thead>
+          <tbody id="users-table-body"></tbody>
+        </table>
+        <div class="empty" id="users-empty" hidden>No users yet.</div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="tab-features" hidden>
+      <div class="panel-header"><h2>Feature Catalog</h2></div>
+      <div class="card create-form" id="create-feature-form">
+        <div class="field"><label>Key</label><input id="new-feature-key" type="text" placeholder="barcode_scanner" /></div>
+        <div class="field"><label>Name</label><input id="new-feature-name" type="text" placeholder="Barcode Scanner" /></div>
+        <div class="field"><label>Description (optional)</label><input id="new-feature-desc" type="text" /></div>
+        <button class="primary" id="create-feature-btn">Add Feature</button>
+      </div>
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table>
+          <thead><tr><th>Key</th><th>Name</th><th>Description</th></tr></thead>
+          <tbody id="features-table-body"></tbody>
+        </table>
+        <div class="empty" id="features-empty" hidden>No features defined yet. Add one above, then turn it on per-user from the Users tab.</div>
+      </div>
+    </section>
+
+    <!-- APP VERSIONS -->
+    <section id="tab-versions" hidden>
+      <div class="panel-header"><h2>App Version Policy</h2></div>
+      <div class="card create-form" id="version-form">
+        <div class="field"><label>Platform</label><input id="version-platform" type="text" placeholder="android" /></div>
+        <div class="field"><label>Latest version</label><input id="version-latest" type="text" placeholder="1.2.0" /></div>
+        <div class="field"><label>Minimum version</label><input id="version-minimum" type="text" placeholder="1.0.0" /></div>
+        <button class="primary" id="save-version-btn">Save</button>
+      </div>
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table>
+          <thead><tr><th>Platform</th><th>Latest</th><th>Minimum</th><th>Updated</th><th></th></tr></thead>
+          <tbody id="versions-table-body"></tbody>
+        </table>
+        <div class="empty" id="versions-empty" hidden>No version policy configured yet -- the app won't prompt anyone to update until you add one.</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+
+<script>
+const API_BASE = '/api/v1';
+let accessToken = sessionStorage.getItem('admin_access_token') || null;
+let currentUser = null;
+let allFeaturesCache = [];
+
+// ---------- API helper ----------
+async function api(path, options = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+  const res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* no body */ }
+  if (!res.ok) {
+    const detail = body && body.detail;
+    const message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d.msg).join('; ') : 'Request failed');
+    throw new Error(message);
+  }
+  return body;
+}
+
+// ---------- Toast ----------
+function toast(message, kind = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ---------- Auth ----------
+function setToken(token) {
+  accessToken = token;
+  if (token) sessionStorage.setItem('admin_access_token', token);
+  else sessionStorage.removeItem('admin_access_token');
+}
+
+async function tryResumeSession() {
+  if (!accessToken) return showLogin();
+  try {
+    currentUser = await api('/auth/me');
+    if (currentUser.role !== 'ADMIN') {
+      setToken(null);
+      showLogin('This account is not an administrator.');
+      return;
+    }
+    showApp();
+  } catch (err) {
+    setToken(null);
+    showLogin();
+  }
+}
+
+function showLogin(error) {
+  document.getElementById('app-view').hidden = true;
+  document.getElementById('login-view').hidden = false;
+  document.getElementById('login-error').textContent = error || '';
+}
+
+function showApp() {
+  document.getElementById('login-view').hidden = true;
+  document.getElementById('app-view').hidden = false;
+  document.getElementById('who-email').textContent = currentUser.email;
+  loadUsers();
+  loadFeatures();
+  loadVersions();
+}
+
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  document.getElementById('login-error').textContent = '';
+  if (!email || !password) {
+    document.getElementById('login-error').textContent = 'Enter your email and password';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const tokens = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    setToken(tokens.access_token);
+    currentUser = await api('/auth/me');
+    if (currentUser.role !== 'ADMIN') {
+      setToken(null);
+      showLogin('This account is not an administrator.');
+      return;
+    }
+    showApp();
+  } catch (err) {
+    document.getElementById('login-error').textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  setToken(null);
+  currentUser = null;
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  showLogin();
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['users', 'features', 'versions'].forEach((name) => {
+      document.getElementById(`tab-${name}`).hidden = name !== btn.dataset.tab;
+    });
+  });
+});
+
+// ---------- Users ----------
+function fmtDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+async function loadUsers() {
+  const tbody = document.getElementById('users-table-body');
+  try {
+    const users = await api('/admin/users?limit=500');
+    document.getElementById('users-empty').hidden = users.length !== 0;
+    tbody.innerHTML = users.map(renderUserRow).join('');
+    tbody.querySelectorAll('[data-action="toggle-active"]').forEach((btn) =>
+      btn.addEventListener('click', () => toggleActive(btn.dataset.id, btn.dataset.next === 'true'))
+    );
+    tbody.querySelectorAll('[data-action="set-expiry"]').forEach((btn) =>
+      btn.addEventListener('click', () => setExpiry(btn.dataset.id))
+    );
+    tbody.querySelectorAll('[data-action="manage-features"]').forEach((btn) =>
+      btn.addEventListener('click', () => openFeaturesModal(btn.dataset.id, btn.dataset.email))
+    );
+    tbody.querySelectorAll('[data-action="reset-password"]').forEach((btn) =>
+      btn.addEventListener('click', () => resetPassword(btn.dataset.id, btn.dataset.email))
+    );
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function renderUserRow(user) {
+  const statusPill = user.is_active
+    ? '<span class="pill active">Active</span>'
+    : '<span class="pill inactive">Disabled</span>';
+  const rolePill = user.role === 'ADMIN' ? '<span class="pill admin">Admin</span>' : '<span class="pill staff">Staff</span>';
+  const expired = user.expires_at && new Date(user.expires_at) < new Date(new Date().toDateString());
+  const expiresText = user.expires_at
+    ? `${fmtDate(user.expires_at)}${expired ? ' <span class="pill inactive">Expired</span>' : ''}`
+    : '<span class="muted">No expiry</span>';
+  return `
+    <tr>
+      <td>${escapeHtml(user.email)}</td>
+      <td>${escapeHtml(user.full_name || '—')}</td>
+      <td>${rolePill}</td>
+      <td>${statusPill}</td>
+      <td>${expiresText}</td>
+      <td>
+        <div class="row-actions">
+          <button class="secondary" data-action="toggle-active" data-id="${user.id}" data-next="${!user.is_active}">
+            ${user.is_active ? 'Disable' : 'Enable'}
+          </button>
+          <button class="secondary" data-action="set-expiry" data-id="${user.id}">Set Expiry</button>
+          <button class="secondary" data-action="manage-features" data-id="${user.id}" data-email="${escapeHtml(user.email)}">Features</button>
+          <button class="secondary" data-action="reset-password" data-id="${user.id}" data-email="${escapeHtml(user.email)}">Reset Password</button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+document.getElementById('create-user-btn').addEventListener('click', async () => {
+  const email = document.getElementById('new-user-email').value.trim();
+  const password = document.getElementById('new-user-password').value;
+  const full_name = document.getElementById('new-user-name').value.trim() || null;
+  const role = document.getElementById('new-user-role').value;
+  if (!email || !password) return toast('Email and password are required', 'error');
+  if (password.length < 8) return toast('Password must be at least 8 characters', 'error');
+  const btn = document.getElementById('create-user-btn');
+  btn.disabled = true;
+  try {
+    await api('/admin/users', { method: 'POST', body: JSON.stringify({ email, password, full_name, role }) });
+    document.getElementById('new-user-email').value = '';
+    document.getElementById('new-user-password').value = '';
+    document.getElementById('new-user-name').value = '';
+    toast('User created');
+    loadUsers();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function toggleActive(id, next) {
+  try {
+    await api(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ is_active: next }) });
+    toast(next ? 'User enabled' : 'User disabled');
+    loadUsers();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function setExpiry(id) {
+  const current = '';
+  const input = prompt('Set expiry date (YYYY-MM-DD), or leave blank to clear it:', current);
+  if (input === null) return; // cancelled
+  const expires_at = input.trim() || null;
+  try {
+    await api(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ expires_at }) });
+    toast(expires_at ? 'Expiry updated' : 'Expiry cleared');
+    loadUsers();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function resetPassword(id, email) {
+  const password = prompt(`Set a new password for ${email} (min. 8 characters):`);
+  if (password === null) return; // cancelled
+  if (password.length < 8) return toast('Password must be at least 8 characters', 'error');
+  try {
+    await api(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ password }) });
+    toast('Password reset');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ---------- Features ----------
+async function loadFeatures() {
+  const tbody = document.getElementById('features-table-body');
+  try {
+    const features = await api('/admin/features');
+    allFeaturesCache = features;
+    document.getElementById('features-empty').hidden = features.length !== 0;
+    tbody.innerHTML = features.map((f) => `
+      <tr>
+        <td><code>${escapeHtml(f.key)}</code></td>
+        <td>${escapeHtml(f.name)}</td>
+        <td class="muted">${escapeHtml(f.description || '—')}</td>
+      </tr>`).join('');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+document.getElementById('create-feature-btn').addEventListener('click', async () => {
+  const key = document.getElementById('new-feature-key').value.trim();
+  const name = document.getElementById('new-feature-name').value.trim();
+  const description = document.getElementById('new-feature-desc').value.trim() || null;
+  if (!key || !name) return toast('Key and name are required', 'error');
+  if (!/^[a-z0-9_]+$/.test(key)) return toast('Key must be lowercase letters, numbers, and underscores only', 'error');
+  const btn = document.getElementById('create-feature-btn');
+  btn.disabled = true;
+  try {
+    await api('/admin/features', { method: 'POST', body: JSON.stringify({ key, name, description }) });
+    document.getElementById('new-feature-key').value = '';
+    document.getElementById('new-feature-name').value = '';
+    document.getElementById('new-feature-desc').value = '';
+    toast('Feature added');
+    loadFeatures();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- Per-user feature toggles (modal) ----------
+async function openFeaturesModal(userId, email) {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-backdrop" id="features-modal-backdrop">
+      <div class="modal">
+        <div class="modal-head">
+          <h3>Features — ${escapeHtml(email)}</h3>
+          <button class="ghost" id="close-features-modal">✕</button>
+        </div>
+        <div class="modal-body" id="features-modal-body">Loading…</div>
+      </div>
+    </div>`;
+  document.getElementById('close-features-modal').addEventListener('click', () => (root.innerHTML = ''));
+  document.getElementById('features-modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'features-modal-backdrop') root.innerHTML = '';
+  });
+
+  try {
+    const user = await api(`/admin/users/${userId}`);
+    const body = document.getElementById('features-modal-body');
+    if (!user.features.length) {
+      body.innerHTML = '<div class="empty">No features exist yet. Add one from the Features tab first.</div>';
+      return;
+    }
+    body.innerHTML = user.features.map((f) => `
+      <div class="feature-row">
+        <div>
+          <div class="name">${escapeHtml(f.name)}</div>
+          <div class="desc">${escapeHtml(f.key)}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" data-feature-key="${escapeHtml(f.key)}" ${f.enabled ? 'checked' : ''} />
+          <span class="slider"></span>
+        </label>
+      </div>`).join('');
+    body.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      cb.addEventListener('change', async () => {
+        cb.disabled = true;
+        try {
+          await api(`/admin/users/${userId}/features/${cb.dataset.featureKey}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ enabled: cb.checked }),
+          });
+          toast('Updated');
+        } catch (err) {
+          cb.checked = !cb.checked;
+          toast(err.message, 'error');
+        } finally {
+          cb.disabled = false;
+        }
+      });
+    });
+  } catch (err) {
+    document.getElementById('features-modal-body').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+// ---------- App versions ----------
+async function loadVersions() {
+  const tbody = document.getElementById('versions-table-body');
+  try {
+    const versions = await api('/admin/app-versions');
+    document.getElementById('versions-empty').hidden = versions.length !== 0;
+    tbody.innerHTML = versions.map((v) => `
+      <tr>
+        <td>${escapeHtml(v.platform)}</td>
+        <td>${escapeHtml(v.latest_version)}</td>
+        <td>${escapeHtml(v.minimum_version)}</td>
+        <td class="muted">${fmtDate(v.updated_at)}</td>
+        <td><button class="secondary" data-action="edit-version" data-platform="${escapeHtml(v.platform)}" data-latest="${escapeHtml(v.latest_version)}" data-minimum="${escapeHtml(v.minimum_version)}">Edit</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-action="edit-version"]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        document.getElementById('version-platform').value = btn.dataset.platform;
+        document.getElementById('version-latest').value = btn.dataset.latest;
+        document.getElementById('version-minimum').value = btn.dataset.minimum;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      })
+    );
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+document.getElementById('save-version-btn').addEventListener('click', async () => {
+  const platform = document.getElementById('version-platform').value.trim();
+  const latest_version = document.getElementById('version-latest').value.trim();
+  const minimum_version = document.getElementById('version-minimum').value.trim();
+  if (!platform || !latest_version || !minimum_version) return toast('All three fields are required', 'error');
+  const btn = document.getElementById('save-version-btn');
+  btn.disabled = true;
+  try {
+    await api(`/admin/app-versions/${encodeURIComponent(platform)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ latest_version, minimum_version }),
+    });
+    toast('Version policy saved');
+    document.getElementById('version-platform').value = '';
+    document.getElementById('version-latest').value = '';
+    document.getElementById('version-minimum').value = '';
+    loadVersions();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+tryResumeSession();
+</script>
+</body>
+</html>

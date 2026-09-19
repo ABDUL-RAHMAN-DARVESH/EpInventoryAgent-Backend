@@ -1,0 +1,122 @@
+"""
+Coverage for the Dashboard's weekly (Saturday -> Friday) financial window:
+the week-boundary math itself, that Net Position/Receivables/Payables are
+scoped to sales/purchases dated within the current week rather than being a
+lifetime running total, and the previous week's export + its 2-day expiry.
+"""
+import uuid
+from datetime import date, timedelta
+from decimal import Decimal
+
+import pytest
+
+from app.services.dashboard_service import EXPORT_GRACE_DAYS, _previous_week_window, _week_bounds
+
+
+def _unique(suffix: str = "") -> str:
+    return f"{suffix}-{uuid.uuid4().hex[:8]}"
+
+
+@pytest.mark.parametrize(
+    "reference,expected_start,expected_end",
+    [
+        (date(2026, 9, 12), date(2026, 9, 12), date(2026, 9, 18)),  # a Saturday -- first day of its week
+        (date(2026, 9, 13), date(2026, 9, 12), date(2026, 9, 18)),  # the following Sunday
+        (date(2026, 9, 18), date(2026, 9, 12), date(2026, 9, 18)),  # the following Friday -- last day of the week
+        (date(2026, 9, 19), date(2026, 9, 19), date(2026, 9, 25)),  # the next Saturday -- a fresh week
+    ],
+)
+def test_week_bounds_runs_saturday_to_friday(reference, expected_start, expected_end):
+    week_start, week_end = _week_bounds(reference)
+    assert week_start == expected_start
+    assert week_end == expected_end
+    assert week_start.weekday() == 5  # Saturday
+    assert week_end.weekday() == 4  # Friday
+
+
+def test_previous_week_window_is_exactly_the_week_before():
+    today = date(2026, 9, 12)  # a Saturday -- first day of a new week
+    prev_start, prev_end, days_since = _previous_week_window(today)
+    assert prev_start == date(2026, 9, 5)
+    assert prev_end == date(2026, 9, 11)
+    assert days_since == 1
+
+
+def test_export_grace_window_is_exactly_two_days():
+    # Saturday (day 1 after last week ended) and Sunday (day 2) are both
+    # within the grace window; Monday (day 3) is not.
+    saturday, sunday, monday = date(2026, 9, 12), date(2026, 9, 13), date(2026, 9, 14)
+
+    _, _, days_since_sat = _previous_week_window(saturday)
+    _, _, days_since_sun = _previous_week_window(sunday)
+    _, _, days_since_mon = _previous_week_window(monday)
+
+    assert 1 <= days_since_sat <= EXPORT_GRACE_DAYS
+    assert 1 <= days_since_sun <= EXPORT_GRACE_DAYS
+    assert not (1 <= days_since_mon <= EXPORT_GRACE_DAYS)
+
+
+async def _create_customer(client, name, area="WeeklyArea"):
+    resp = await client.post("/customers", json={"name": name, "area": area})
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def _create_product(client, sku):
+    resp = await client.post("/products", json={"sku": sku, "name": "Weekly Widget", "brand": "Generic"})
+    assert resp.status_code == 201
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_receivables_only_reflect_sales_dated_this_week(client):
+    # A sale dated last week must not move this week's receivables, even
+    # though its balance is still unpaid -- the weekly figures are a cohort
+    # of "business done this week", not a lifetime running balance.
+    suffix = _unique()
+    customer = await _create_customer(client, f"Weekly Customer{suffix}")
+    product = await _create_product(client, f"WW{suffix}")
+
+    before = (await client.get("/dashboard")).json()
+    last_week_date = (date.fromisoformat(before["week_start"]) - timedelta(days=7)).isoformat()
+
+    resp = await client.post(
+        "/sales",
+        json={
+            "customer_id": customer["id"],
+            "sale_date": last_week_date,
+            "items": [{"product_id": product["id"], "unit_price": "500.00", "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201
+
+    resp = await client.post(
+        "/sales",
+        json={
+            "customer_id": customer["id"],
+            "items": [{"product_id": product["id"], "unit_price": "300.00", "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201
+
+    after = (await client.get("/dashboard")).json()
+
+    # Only the sale dated within the current week should move the total.
+    assert Decimal(after["total_receivables"]) - Decimal(before["total_receivables"]) == Decimal("300.00")
+    assert "overdue_customer_balance" not in after
+    assert "overdue_manufacturer_balance" not in after
+
+
+@pytest.mark.asyncio
+async def test_previous_week_export_route_matches_availability_flag(client):
+    dash = (await client.get("/dashboard")).json()
+    resp = await client.get("/dashboard/weekly-export/previous")
+
+    if dash["previous_week_export"]["available"]:
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["week_start"] == dash["previous_week_export"]["week_start"]
+        assert body["week_end"] == dash["previous_week_export"]["week_end"]
+        assert "sales" in body and "purchases" in body
+    else:
+        assert resp.status_code == 404
