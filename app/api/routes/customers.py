@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -54,6 +54,19 @@ async def deactivate_customer(
 ):
     """Soft-deletes (deactivates) the customer. Customers with financial history are never hard-deleted."""
     return await customer_service.deactivate_customer(db, current_user.id, customer_id)
+
+
+@router.post("/{customer_id}/image", response_model=CustomerRead)
+async def upload_customer_image(
+    customer_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    file_bytes = await file.read()
+    return await customer_service.upload_customer_image(
+        db, current_user.id, customer_id, file_bytes, file.content_type
+    )
 
 
 @router.post("/{customer_id}/sales", response_model=SaleRead, status_code=201)

@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24  # 24h
     refresh_token_expire_days: int = 30
 
+    # Supabase Storage, for customer/manufacturer/shop images (see
+    # app/core/storage.py). Only required once an image-upload endpoint is
+    # actually called -- absent locally until image features are exercised.
+    supabase_url: str | None = None
+    supabase_service_key: str | None = None
+    supabase_storage_bucket: str = "app-images"
+
     @model_validator(mode="after")
     def _refuse_insecure_secret_outside_local(self) -> "Settings":
         if self.app_env != "local" and self.secret_key == _INSECURE_DEFAULT_SECRET_KEY:

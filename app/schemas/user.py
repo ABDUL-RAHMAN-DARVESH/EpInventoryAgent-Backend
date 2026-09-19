@@ -45,6 +45,14 @@ class UserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Presence of shop_name is what the frontend treats as "onboarding done" --
+    # see RootNavigator.js. All four are None until first-login setup completes.
+    shop_name: str | None
+    shop_address: str | None
+    shop_phone: str | None
+    shop_logo_url: str | None
+    shop_image_url: str | None
+
 
 class UserWithFeatures(UserRead):
     features: list[FeatureFlag]

@@ -44,6 +44,7 @@ async def record_customer_payment(
         method=data.method,
         reference_number=data.reference_number,
         notes=data.notes,
+        is_initial_payment=False,  # this endpoint is always a later collection visit, i.e. genuine CP
     )
     await payment_repo.create_customer_payment(db, payment)
 

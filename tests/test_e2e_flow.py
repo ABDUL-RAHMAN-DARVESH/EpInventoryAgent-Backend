@@ -151,13 +151,10 @@ async def test_dashboard_reflects_transactions(client):
 
     after = (await client.get("/dashboard")).json()
 
-    # Both flows end fully paid, so receivables/payables delta should be zero,
-    # but collected/paid totals must have increased by the full sale/purchase amounts.
-    assert Decimal(after["total_collected_from_customers"]) - Decimal(
-        before["total_collected_from_customers"]
-    ) == Decimal("100000.00")
-    assert Decimal(after["total_paid_to_manufacturers"]) - Decimal(
-        before["total_paid_to_manufacturers"]
-    ) == Decimal("100000.00")
-    assert Decimal(after["total_receivables"]) == Decimal(before["total_receivables"])
-    assert Decimal(after["total_payables"]) == Decimal(before["total_payables"])
+    # Both flows end fully paid, so pending receivables/payables delta should
+    # be zero, but the actual collected/paid totals must have increased by
+    # the full sale/purchase amounts.
+    assert Decimal(after["total_receivables"]) - Decimal(before["total_receivables"]) == Decimal("100000.00")
+    assert Decimal(after["total_payables"]) - Decimal(before["total_payables"]) == Decimal("100000.00")
+    assert Decimal(after["pending_receivables"]) == Decimal(before["pending_receivables"])
+    assert Decimal(after["pending_payables"]) == Decimal(before["pending_payables"])

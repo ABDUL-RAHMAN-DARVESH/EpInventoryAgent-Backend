@@ -17,6 +17,7 @@ class Manufacturer(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     purchases: Mapped[list["Purchase"]] = relationship(back_populates="manufacturer")

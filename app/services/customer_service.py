@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import storage
 from app.core.exceptions import NotFoundError
 from app.models.customer import Customer
 from app.repositories import customer as customer_repo
@@ -42,6 +43,17 @@ async def update_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uu
 async def deactivate_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
     customer = await get_customer(db, owner_id, customer_id)
     customer.is_active = False
+    await db.commit()
+    await db.refresh(customer)
+    return customer
+
+
+async def upload_customer_image(
+    db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID, file_bytes: bytes, content_type: str
+) -> Customer:
+    customer = await get_customer(db, owner_id, customer_id)
+    ext = storage.extension_for(content_type)
+    customer.image_url = await storage.upload_image(file_bytes, content_type, f"customers/{owner_id}/{customer_id}.{ext}")
     await db.commit()
     await db.refresh(customer)
     return customer

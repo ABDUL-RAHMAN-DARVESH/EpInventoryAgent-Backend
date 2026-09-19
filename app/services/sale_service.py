@@ -71,6 +71,11 @@ async def create_sale(db: AsyncSession, owner_id: uuid.UUID, data: SaleCreate) -
             method=data.initial_payment.method,
             reference_number=data.initial_payment.reference_number,
             notes=data.initial_payment.notes,
+            # An advance/full payment taken at sale time is part of the sale
+            # itself (already reflected in Sale.amount_paid), not a later
+            # collection visit -- it must never be counted as a Customer
+            # Payment (CP) activity. See dashboard_service._latest_customer_payment_activity.
+            is_initial_payment=True,
         )
         db.add(payment)
         sale.amount_paid = data.initial_payment.amount

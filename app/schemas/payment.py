@@ -35,6 +35,7 @@ class CustomerPaymentRead(BaseModel):
     method: PaymentMethod
     reference_number: str | None
     notes: str | None
+    is_initial_payment: bool
     created_at: datetime
 
 

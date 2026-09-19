@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -54,6 +54,19 @@ async def deactivate_manufacturer(
 ):
     """Soft-deletes (deactivates) the manufacturer. Manufacturers with financial history are never hard-deleted."""
     return await manufacturer_service.deactivate_manufacturer(db, current_user.id, manufacturer_id)
+
+
+@router.post("/{manufacturer_id}/image", response_model=ManufacturerRead)
+async def upload_manufacturer_image(
+    manufacturer_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    file_bytes = await file.read()
+    return await manufacturer_service.upload_manufacturer_image(
+        db, current_user.id, manufacturer_id, file_bytes, file.content_type
+    )
 
 
 @router.post("/{manufacturer_id}/purchases", response_model=PurchaseRead, status_code=201)

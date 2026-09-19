@@ -69,10 +69,10 @@ async def _create_product(client, sku):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_receivables_only_reflect_sales_dated_this_week(client):
-    # A sale dated last week must not move this week's receivables, even
-    # though its balance is still unpaid -- the weekly figures are a cohort
-    # of "business done this week", not a lifetime running balance.
+async def test_pending_receivables_only_reflect_sales_dated_this_week(client):
+    # A sale dated last week must not move this week's *pending* receivables,
+    # even though its balance is still unpaid -- the weekly figures are a
+    # cohort of "business done this week", not a lifetime running balance.
     suffix = _unique()
     customer = await _create_customer(client, f"Weekly Customer{suffix}")
     product = await _create_product(client, f"WW{suffix}")
@@ -102,9 +102,73 @@ async def test_dashboard_receivables_only_reflect_sales_dated_this_week(client):
     after = (await client.get("/dashboard")).json()
 
     # Only the sale dated within the current week should move the total.
-    assert Decimal(after["total_receivables"]) - Decimal(before["total_receivables"]) == Decimal("300.00")
+    assert Decimal(after["pending_receivables"]) - Decimal(before["pending_receivables"]) == Decimal("300.00")
     assert "overdue_customer_balance" not in after
     assert "overdue_manufacturer_balance" not in after
+
+
+@pytest.mark.asyncio
+async def test_total_receivables_reflects_payments_dated_this_week_not_sale_date(client):
+    # total_receivables is actual money collected -- scoped by the *payment's*
+    # date, regardless of when the underlying sale happened.
+    suffix = _unique()
+    customer = await _create_customer(client, f"Weekly Customer{suffix}")
+    product = await _create_product(client, f"WW{suffix}")
+
+    before = (await client.get("/dashboard")).json()
+    last_week_date = (date.fromisoformat(before["week_start"]) - timedelta(days=7)).isoformat()
+
+    sale = (
+        await client.post(
+            "/sales",
+            json={
+                "customer_id": customer["id"],
+                "sale_date": last_week_date,
+                "items": [{"product_id": product["id"], "unit_price": "1000.00", "quantity": 1}],
+            },
+        )
+    ).json()
+
+    # A payment dated last week must not count toward this week's total.
+    resp = await client.post(f"/sales/{sale['id']}/payments", json={"amount": "200.00", "payment_date": last_week_date})
+    assert resp.status_code == 201
+
+    # A payment dated this week (the default) must count.
+    resp = await client.post(f"/sales/{sale['id']}/payments", json={"amount": "300.00"})
+    assert resp.status_code == 201
+
+    after = (await client.get("/dashboard")).json()
+    assert Decimal(after["total_receivables"]) - Decimal(before["total_receivables"]) == Decimal("300.00")
+
+
+@pytest.mark.asyncio
+async def test_initial_sale_payment_counts_as_receivable_but_not_as_cp_activity(client):
+    # An advance/full payment taken at sale time is real money collected, so
+    # it must count toward total_receivables -- but it is not a Customer
+    # Payment collection visit, so it must never appear in (or become "the
+    # latest" for) latest_customer_payments.
+    suffix = _unique()
+    customer = await _create_customer(client, f"Weekly Customer{suffix}")
+    product = await _create_product(client, f"WW{suffix}")
+
+    before = (await client.get("/dashboard")).json()
+
+    resp = await client.post(
+        "/sales",
+        json={
+            "customer_id": customer["id"],
+            "items": [{"product_id": product["id"], "unit_price": "1000.00", "quantity": 1}],
+            "initial_payment": {"amount": "400.00"},
+        },
+    )
+    assert resp.status_code == 201
+
+    after = (await client.get("/dashboard")).json()
+    assert Decimal(after["total_receivables"]) - Decimal(before["total_receivables"]) == Decimal("400.00")
+
+    latest_cp = after["latest_customer_payments"]
+    if latest_cp is not None:
+        assert all(p["customer_id"] != customer["id"] for p in latest_cp["payments"])
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ class CustomerBase(BaseModel):
     landmark: str | None = Field(None, max_length=255)
     phone: str | None = Field(None, max_length=50)
     email: str | None = Field(None, max_length=255)
+    image_url: str | None = Field(None, max_length=500)
 
 
 class CustomerCreate(CustomerBase):
@@ -22,6 +23,7 @@ class CustomerUpdate(BaseModel):
     landmark: str | None = Field(None, max_length=255)
     phone: str | None = Field(None, max_length=50)
     email: str | None = Field(None, max_length=255)
+    image_url: str | None = Field(None, max_length=500)
     is_active: bool | None = None
 
 

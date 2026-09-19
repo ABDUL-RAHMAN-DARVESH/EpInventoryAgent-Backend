@@ -8,6 +8,7 @@ class ManufacturerBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     phone: str | None = Field(None, max_length=50)
     email: str | None = Field(None, max_length=255)
+    image_url: str | None = Field(None, max_length=500)
 
 
 class ManufacturerCreate(ManufacturerBase):
@@ -18,6 +19,7 @@ class ManufacturerUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     phone: str | None = Field(None, max_length=50)
     email: str | None = Field(None, max_length=255)
+    image_url: str | None = Field(None, max_length=500)
     is_active: bool | None = None
 
 

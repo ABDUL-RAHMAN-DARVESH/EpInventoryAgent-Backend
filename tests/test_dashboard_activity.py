@@ -161,6 +161,53 @@ async def test_latest_customer_payment_activity_aggregates_the_most_recent_area_
 
 
 @pytest.mark.asyncio
+async def test_latest_customer_payment_activity_ignores_advance_payments_from_newer_sales(client):
+    # A genuine CP collection visit must stay "the latest" activity even if a
+    # brand-new sale (with an advance/full payment taken at sale time) gets
+    # created afterward -- that advance is part of the sale, not a later
+    # collection round, and must never hijack this activity just because its
+    # CustomerPayment row happens to be the most recently created one.
+    suffix = _unique()
+    cp_area = f"GenuineCP-{suffix}"
+    sale_area = f"NewerSale-{suffix}"
+    product = await _create_product(client, f"FAN-ORD{suffix}")
+
+    cp_customer = await _create_customer(client, f"Genuine CP Customer{suffix}", cp_area)
+    sale = (
+        await client.post(
+            "/sales",
+            json={
+                "customer_id": cp_customer["id"],
+                "items": [{"product_id": product["id"], "unit_price": "1000.00", "quantity": 1}],
+            },
+        )
+    ).json()
+    resp = await client.post(f"/sales/{sale['id']}/payments", json={"amount": "600.00"})
+    assert resp.status_code == 201
+
+    # Now record a newer, unrelated sale with an advance payment in a different area.
+    newer_customer = await _create_customer(client, f"Newer Sale Customer{suffix}", sale_area)
+    resp = await client.post(
+        "/sales",
+        json={
+            "customer_id": newer_customer["id"],
+            "items": [{"product_id": product["id"], "unit_price": "500.00", "quantity": 1}],
+            "initial_payment": {"amount": "200.00"},
+        },
+    )
+    assert resp.status_code == 201
+
+    resp = await client.get("/dashboard")
+    assert resp.status_code == 200
+    latest = resp.json()["latest_customer_payments"]
+    assert latest is not None
+    assert latest["area"] == cp_area
+    assert latest["customers_count"] == 1
+    assert Decimal(latest["total_collected"]) == Decimal("600.00")
+    assert all(p["customer_id"] != newer_customer["id"] for p in latest["payments"])
+
+
+@pytest.mark.asyncio
 async def test_dashboard_handles_no_data_gracefully_when_only_other_areas_exist(client):
     # Sanity: even with prior data from other tests in the DB, the endpoint
     # must always resolve (never 500) and return well-formed nullable fields.

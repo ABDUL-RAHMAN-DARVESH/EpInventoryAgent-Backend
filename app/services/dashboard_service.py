@@ -51,9 +51,27 @@ def _week_bounds(reference_date: date) -> tuple[date, date]:
 
 async def _weekly_financials(db: AsyncSession, owner_id: uuid.UUID, week_start: date, week_end: date) -> dict:
     """Net position/receivables/payables for one Saturday-to-Friday week --
-    scoped to sales/purchases/payments *dated* within that window, not a
-    lifetime running balance. This is what makes each new week start fresh."""
+    scoped to *actual money that changed hands* (payments dated within the
+    window), not the amount customers/manufacturers were expected to pay.
+    `pending_receivables`/`pending_payables` carry the old "expected but not
+    yet paid" view (still scoped to sales/purchases dated this week) as a
+    secondary figure. This is what makes each new week start fresh."""
     total_receivables = await db.scalar(
+        select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
+            CustomerPayment.owner_id == owner_id,
+            CustomerPayment.payment_date >= week_start,
+            CustomerPayment.payment_date <= week_end,
+        )
+    ) or Decimal("0")
+    total_payables = await db.scalar(
+        select(func.coalesce(func.sum(ManufacturerPayment.amount), 0)).where(
+            ManufacturerPayment.owner_id == owner_id,
+            ManufacturerPayment.payment_date >= week_start,
+            ManufacturerPayment.payment_date <= week_end,
+        )
+    ) or Decimal("0")
+
+    pending_receivables = await db.scalar(
         select(func.coalesce(func.sum(Sale.balance_due), 0)).where(
             Sale.owner_id == owner_id, Sale.sale_date >= week_start, Sale.sale_date <= week_end
         )
@@ -64,7 +82,7 @@ async def _weekly_financials(db: AsyncSession, owner_id: uuid.UUID, week_start: 
         )
     ) or 0
 
-    total_payables = await db.scalar(
+    pending_payables = await db.scalar(
         select(func.coalesce(func.sum(Purchase.balance_due), 0)).where(
             Purchase.owner_id == owner_id, Purchase.purchase_date >= week_start, Purchase.purchase_date <= week_end
         )
@@ -78,29 +96,14 @@ async def _weekly_financials(db: AsyncSession, owner_id: uuid.UUID, week_start: 
         )
     ) or 0
 
-    total_collected_from_customers = await db.scalar(
-        select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
-            CustomerPayment.owner_id == owner_id,
-            CustomerPayment.payment_date >= week_start,
-            CustomerPayment.payment_date <= week_end,
-        )
-    ) or Decimal("0")
-    total_paid_to_manufacturers = await db.scalar(
-        select(func.coalesce(func.sum(ManufacturerPayment.amount), 0)).where(
-            ManufacturerPayment.owner_id == owner_id,
-            ManufacturerPayment.payment_date >= week_start,
-            ManufacturerPayment.payment_date <= week_end,
-        )
-    ) or Decimal("0")
-
     return {
         "total_receivables": total_receivables,
         "total_payables": total_payables,
         "net_position": total_receivables - total_payables,
+        "pending_receivables": pending_receivables,
+        "pending_payables": pending_payables,
         "customers_with_outstanding_balance": customers_with_outstanding_balance,
         "manufacturers_with_outstanding_balance": manufacturers_with_outstanding_balance,
-        "total_collected_from_customers": total_collected_from_customers,
-        "total_paid_to_manufacturers": total_paid_to_manufacturers,
     }
 
 
@@ -160,13 +163,18 @@ async def _latest_sales_activity(db: AsyncSession, owner_id: uuid.UUID) -> Lates
 
 
 async def _latest_customer_payment_activity(db: AsyncSession, owner_id: uuid.UUID) -> LatestCustomerPaymentActivity | None:
-    """The most recent payment collection round: every payment sharing the
+    """The most recent payment *collection round*: every payment sharing the
     same area and payment_date as the most recently recorded payment (matches
-    the real workflow -- a day's collection round through one area)."""
+    the real workflow -- a day's collection round through one area).
+
+    Deliberately excludes `is_initial_payment` rows -- an advance/full amount
+    paid at the moment of sale is part of that sale (see Latest Sales), not a
+    later collection visit, and must never masquerade as one just because it
+    happens to be the most recently-created CustomerPayment row."""
     latest_stmt = (
         select(CustomerPayment.payment_date, Customer.area)
         .join(Customer, Customer.id == CustomerPayment.customer_id)
-        .where(CustomerPayment.owner_id == owner_id)
+        .where(CustomerPayment.owner_id == owner_id, CustomerPayment.is_initial_payment.is_(False))
         .order_by(CustomerPayment.created_at.desc())
         .limit(1)
     )
@@ -180,6 +188,7 @@ async def _latest_customer_payment_activity(db: AsyncSession, owner_id: uuid.UUI
         .join(Customer, Customer.id == CustomerPayment.customer_id)
         .where(
             CustomerPayment.owner_id == owner_id,
+            CustomerPayment.is_initial_payment.is_(False),
             CustomerPayment.payment_date == batch_date,
             _area_filter(Customer.area, area),
         )

@@ -31,4 +31,13 @@ class User(TimestampMixin, Base):
     # enforcement as is_active.
     expires_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 
+    # Set once during first-login onboarding (see shop_profile_service.py).
+    # shop_name is the presence check the frontend gate uses -- all four are
+    # nullable at the DB level since the gate itself lives client-side.
+    shop_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    shop_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    shop_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    shop_logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    shop_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     feature_links: Mapped[list["UserFeature"]] = relationship(back_populates="user", cascade="all, delete-orphan")

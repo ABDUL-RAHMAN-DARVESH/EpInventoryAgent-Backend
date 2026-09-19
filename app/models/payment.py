@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +30,13 @@ class CustomerPayment(Base):
     )
     reference_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # True only for the advance/full payment recorded at the moment a sale is
+    # created (sale_service.create_sale's `initial_payment`). A genuine
+    # Customer Payment (CP) -- money collected on a later visit against an
+    # outstanding balance -- always has this False. This is what lets the
+    # Dashboard's "Latest Customer Payments" activity mean an actual
+    # collection round, not just "a sale happened and had an advance."
+    is_initial_payment: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     customer: Mapped["Customer"] = relationship(back_populates="payments")

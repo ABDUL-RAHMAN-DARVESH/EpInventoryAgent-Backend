@@ -46,8 +46,8 @@ async def update_product(
     return await product_service.update_product(db, current_user.id, product_id, data)
 
 
-@router.delete("/{product_id}", response_model=ProductRead)
-async def deactivate_product(
+@router.delete("/{product_id}", status_code=204)
+async def delete_product(
     product_id: uuid.UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    return await product_service.deactivate_product(db, current_user.id, product_id)
+    await product_service.delete_product(db, current_user.id, product_id)

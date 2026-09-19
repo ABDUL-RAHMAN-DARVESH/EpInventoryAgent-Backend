@@ -72,12 +72,18 @@ class DashboardSummary(BaseModel):
     week_start: date
     week_end: date
 
+    # Actual money that changed hands this week (all CustomerPayment /
+    # ManufacturerPayment rows dated within the week, including advance
+    # payments taken at sale time) -- NOT the amount customers/manufacturers
+    # were merely expected to pay.
     total_receivables: Decimal
     total_payables: Decimal
     net_position: Decimal
 
-    total_collected_from_customers: Decimal
-    total_paid_to_manufacturers: Decimal
+    # The "expected but not yet paid" view, still scoped to sales/purchases
+    # dated this week -- what total_receivables/total_payables used to mean.
+    pending_receivables: Decimal
+    pending_payables: Decimal
 
     customers_with_outstanding_balance: int
     manufacturers_with_outstanding_balance: int
@@ -108,8 +114,8 @@ class WeeklyExportSummary(BaseModel):
     total_payables: Decimal
     net_position: Decimal
 
-    total_collected_from_customers: Decimal
-    total_paid_to_manufacturers: Decimal
+    pending_receivables: Decimal
+    pending_payables: Decimal
 
     customers_with_outstanding_balance: int
     manufacturers_with_outstanding_balance: int

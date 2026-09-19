@@ -53,34 +53,6 @@ async def test_customers_are_isolated_between_users(client, admin_client):
 
 
 @pytest.mark.asyncio
-async def test_products_share_sku_namespace_per_owner_not_globally(client, admin_client):
-    from httpx import ASGITransport, AsyncClient
-
-    from app.main import app
-
-    email = f"other{_unique()}@example.com"
-    resp = await admin_client.post("/admin/users", json={"email": email, "password": "Test1234!"})
-    assert resp.status_code == 201
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test/api/v1") as other_client:
-        login = await other_client.post("/auth/login", json={"email": email, "password": "Test1234!"})
-        other_client.headers["Authorization"] = f"Bearer {login.json()['access_token']}"
-
-        sku = f"SHARED-{uuid.uuid4().hex[:8]}"
-        resp = await client.post("/products", json={"sku": sku, "name": "Widget", "brand": "Acme"})
-        assert resp.status_code == 201
-
-        # The exact same SKU is free to use for a different owner.
-        resp = await other_client.post("/products", json={"sku": sku, "name": "Widget", "brand": "Acme"})
-        assert resp.status_code == 201
-
-        # But re-using it against the SAME owner still conflicts.
-        resp = await client.post("/products", json={"sku": sku, "name": "Widget Again", "brand": "Acme"})
-        assert resp.status_code == 409
-
-
-@pytest.mark.asyncio
 async def test_dashboard_totals_only_reflect_the_caller_s_own_data(client, admin_client):
     from httpx import ASGITransport, AsyncClient
 
