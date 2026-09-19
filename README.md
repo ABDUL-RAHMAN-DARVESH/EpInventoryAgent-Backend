@@ -1,4 +1,4 @@
-# Inventory Payment Agent — Backend
+# PayBook — Backend
 
 Standalone backend for tracking **customer sales & receivables** and **manufacturer purchases & payables**,
 built to validate payment-tracking ideas before they're folded into the Orchestrator.
@@ -104,7 +104,7 @@ venv\Scripts\pytest -v
 
 | Variable       | Description                                              | Default |
 |----------------|-----------------------------------------------------------|---------|
-| `APP_NAME`     | Displayed as the API title in Swagger                     | `Inventory Payment Agent` |
+| `APP_NAME`     | Displayed as the API title in Swagger                     | `PayBook` |
 | `APP_ENV`      | Free-text environment label                                | `local` |
 | `DEBUG`        | Enables SQL echo logging                                   | `true` |
 | `DATABASE_URL` | `postgresql+psycopg://user:pass@host:port/db`               | — |

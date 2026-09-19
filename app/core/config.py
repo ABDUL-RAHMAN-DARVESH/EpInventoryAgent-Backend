@@ -11,7 +11,7 @@ _INSECURE_DEFAULT_SECRET_KEY = "dev-only-insecure-secret-key-change-me"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Inventory Payment Agent"
+    app_name: str = "PayBook"
     app_env: str = "local"
     debug: bool = True
 
