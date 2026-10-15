@@ -2,6 +2,7 @@ from app.models.app_version import AppVersionConfig
 from app.models.customer import Customer
 from app.models.feature import Feature, UserFeature
 from app.models.manufacturer import Manufacturer
+from app.models.party_number_counter import PartyNumberCounter
 from app.models.payment import CustomerPayment, ManufacturerPayment
 from app.models.product import Product
 from app.models.purchase import Purchase, PurchaseItem
@@ -16,6 +17,7 @@ __all__ = [
     "AppVersionConfig",
     "Customer",
     "Manufacturer",
+    "PartyNumberCounter",
     "Product",
     "Sale",
     "SaleItem",

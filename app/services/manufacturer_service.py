@@ -6,11 +6,13 @@ from app.core import storage
 from app.core.exceptions import NotFoundError
 from app.models.manufacturer import Manufacturer
 from app.repositories import manufacturer as manufacturer_repo
+from app.repositories import party_number as party_number_repo
 from app.schemas.manufacturer import ManufacturerCreate, ManufacturerUpdate
 
 
 async def create_manufacturer(db: AsyncSession, owner_id: uuid.UUID, data: ManufacturerCreate) -> Manufacturer:
-    manufacturer = Manufacturer(owner_id=owner_id, **data.model_dump())
+    number = await party_number_repo.next_number(db, owner_id, "manufacturer")
+    manufacturer = Manufacturer(owner_id=owner_id, manufacturer_number=number, **data.model_dump())
     manufacturer = await manufacturer_repo.create(db, manufacturer)
     await db.commit()
     await db.refresh(manufacturer)

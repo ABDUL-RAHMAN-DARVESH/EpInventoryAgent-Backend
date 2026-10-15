@@ -27,6 +27,7 @@ class ManufacturerRead(ManufacturerBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    manufacturer_number: int
     is_active: bool
     created_at: datetime
     updated_at: datetime

@@ -1,16 +1,20 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
 
-
 class Manufacturer(TimestampMixin, Base):
     __tablename__ = "manufacturers"
+    __table_args__ = (UniqueConstraint("owner_id", "manufacturer_number", name="uq_manufacturers_owner_number"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    manufacturer_number: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+    )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )

@@ -6,11 +6,13 @@ from app.core import storage
 from app.core.exceptions import NotFoundError
 from app.models.customer import Customer
 from app.repositories import customer as customer_repo
+from app.repositories import party_number as party_number_repo
 from app.schemas.customer import CustomerCreate, CustomerUpdate
 
 
 async def create_customer(db: AsyncSession, owner_id: uuid.UUID, data: CustomerCreate) -> Customer:
-    customer = Customer(owner_id=owner_id, **data.model_dump())
+    number = await party_number_repo.next_number(db, owner_id, "customer")
+    customer = Customer(owner_id=owner_id, customer_number=number, **data.model_dump())
     customer = await customer_repo.create(db, customer)
     await db.commit()
     await db.refresh(customer)

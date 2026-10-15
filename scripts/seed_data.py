@@ -21,6 +21,7 @@ from sqlalchemy import text
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal, engine
 from app.models.customer import Customer
+from app.repositories.party_number import next_number
 from app.models.enums import PaymentMethod
 from app.models.payment import CustomerPayment
 from app.models.product import Product
@@ -195,7 +196,8 @@ async def seed():
         idx = 0
         for area in AREAS:
             for _ in range(20):
-                customers.append(Customer(owner_id=owner_id, name=names[idx], area=area, phone=random_phone()))
+                number = await next_number(session, owner_id, "customer")
+                customers.append(Customer(owner_id=owner_id, customer_number=number, name=names[idx], area=area, phone=random_phone()))
                 idx += 1
         session.add_all(customers)
         await session.flush()
